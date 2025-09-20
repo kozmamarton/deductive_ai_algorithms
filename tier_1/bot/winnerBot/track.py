@@ -1,5 +1,29 @@
 import numpy as np
+from dataclasses import dataclass
+'''
+@dataclass
+class Node:
+    def __init__(self, x: int, y: int, north=None, south=None, west=None, east=None,
+                 northwest=None, northeast=None, southwest=None, southeast=None):
+        self.x = x
+        self.y = y
+        self.north = north
+        self.south = south
+        self.west = west
+        self.east = east
+        self.northwest = northwest
+        self.northeast = northeast
+        self.southwest = southwest
+        self.southeast = southeast
+        
 
+class Graph:
+    root : Node
+    
+    def __init__(self):
+        pass
+   ''' 
+    
 
 
 class Track:

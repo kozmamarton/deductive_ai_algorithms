@@ -32,9 +32,9 @@ class RacerAgent:
             then this function implicitly stops the race by setting the race_running object variable
         """
         
-        self.race_running = self.ktm_exc_300.read_input()
-        if not self.race_running:
-            return
+        if not self.ktm_exc_300.read_input():
+            self.race_running = False
+            return 
         for enemy in self.enemies:
             enemy.read_input()
             

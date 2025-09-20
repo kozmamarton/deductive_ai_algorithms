@@ -21,14 +21,15 @@ if [[ "$replay_flag" == "--replay" ]]; then
 fi
 python3 $workdir"run.py" $config_file $player_num $replay_arg &
 
-sleep 2
-echo "starting player 1"
+sleep 3
+echo "starting players"
 
 python3 $bots_dir"client_bridge.py" "bot/naive_astar_no_speed.py" &
+python3 $bots_dir"client_bridge.py" "bot/winnerBot/kozma_bot.py" &
 
 
 wait
-if [[ "$replay_arg" == "" ]]; then
+if [[ -z $replay_arg ]]; then
   exit 0
 fi
 

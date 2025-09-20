@@ -205,8 +205,8 @@ class EnvironmentRunner:
                     tick = time.perf_counter()
                     player_input = self.env.read_player_input(
                         lambda: self._read_from_client(current_player))
-                    print('Player', self._player_name(current_player),
-                          'input:', player_input)
+                    #print('Player', self._player_name(current_player),
+                    #      'input:', player_input)
                     tock = time.perf_counter()
                     if tock - tick > self.step_timeout:
                         player_input = None

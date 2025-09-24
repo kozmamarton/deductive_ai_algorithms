@@ -6,6 +6,7 @@ class Track:
     TRACK_WIDTH: int
     TRACK_HEIGHT: int
     PLAYERS_COUNT: int
+    TRACK_MAXIMUM_DISTANCE: int
     race_track: np.ndarray
     goal_positions: np.ndarray
     start_position: Vertex
@@ -14,6 +15,7 @@ class Track:
         self.race_track = self.__read_track__()
         self.goal_positions = self.__collect_goal_positions__()
         self.start_position = Vertex(0,0)
+        self.TRACK_MAXIMUM_DISTANCE = self.TRACK_HEIGHT + self.TRACK_WIDTH
     
     def __read_track__(self) -> np.ndarray:
         self.TRACK_HEIGHT, self.TRACK_WIDTH, self.PLAYERS_COUNT = map(int, input().split()) 

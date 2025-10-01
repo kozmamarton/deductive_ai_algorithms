@@ -11,4 +11,4 @@ class EnemyRacer:
         self.ID = id
         
     def read_input(self):
-        self.y, self.x = map(int, input().split(' '))
+        self.x, self.y = map(int, input().split(' '))

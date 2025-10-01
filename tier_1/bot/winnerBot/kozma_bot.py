@@ -31,7 +31,7 @@ class Racer:
         curr_vel = self.ktm_exc.get_speed()
         return (position[0] + dx + curr_vel[0], position[1] + dy + curr_vel[1])
     
-    def valid_move(self, pos : tuple[int, int] = None):
+    def valid_move(self, start, pos : tuple[int, int], speed):
         for enemy in self.enemies:
             if enemy.x == pos[0] and enemy.y == pos[1]:
                 return False
@@ -39,14 +39,16 @@ class Racer:
         track = self.track.get_track()
         return 0 <= pos[0] < track.shape[0] and \
             0 <= pos[1] < track.shape[1] and \
-            track[pos[0], pos[1]] >= 0
-        
+            track[pos[0], pos[1]] >= 0 and \
+            -1 <= abs(speed[0]) - abs(pos[0] - start[0]) <= 1 and \
+            -1 <= abs(speed[1]) - abs(pos[1] - start[1]) <= 1
         
     def is_goal(self, position : tuple[int, int]) -> bool:
         return (np.array(position) == self.track.goal_positions).all(1).any()
                 
     def a_star(self):
         start = self.ktm_exc.get_pos()
+        current_speed = self.ktm_exc.get_speed()
         goals = self.track.goal_positions
         openSet = {start}
         closedSet = set()
@@ -66,9 +68,11 @@ class Racer:
 
             openSet.remove(current)
             closedSet.add(current)
-            for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+            for dx, dy in [(i,j) for i in range(-1,2) for j in range(-1, 2)]:
+                
                 child = (current[0] + dx, current[1] + dy)
-                if not self.valid_move(child) or child in closedSet:
+                self.logger(child)
+                if not self.valid_move(current,child,current_speed) or child in closedSet:
                     continue
                 if child not in openSet:
                     openSet.add(child)
@@ -85,7 +89,8 @@ class Racer:
     
     def calculate_decision(self, next_pos: tuple[int, int]) -> tuple[int, int]:
         current_pos = self.ktm_exc.get_pos()
-        result = (next_pos[0] - current_pos[0], next_pos[1] - current_pos[1])
+        current_speed = self.ktm_exc.get_speed()
+        result = (next_pos[0] - (current_pos[0] + current_speed[0]), next_pos[1] - (current_pos[1] + current_speed[1]))
         return result
     
     def race(self):
@@ -95,7 +100,7 @@ class Racer:
             self.update_enemy_pos()
             path_to_goal = self.a_star()
             if not path_to_goal:
-                self.say_decision_to_judge(self.calculate_decision(last_plan[-1]))
+                self.say_decision_to_judge(self.calculate_decision(last_plan[-3]))
                 continue 
             last_plan = path_to_goal
             next_move = path_to_goal[-2]

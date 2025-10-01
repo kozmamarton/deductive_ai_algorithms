@@ -71,7 +71,7 @@ class Racer:
             for dx, dy in [(i,j) for i in range(-1,2) for j in range(-1, 2)]:
                 
                 child = (current[0] + dx, current[1] + dy)
-                self.logger(child)
+               # self.logger(child)
                 if not self.valid_move(current,child,current_speed) or child in closedSet:
                     continue
                 if child not in openSet:
@@ -100,7 +100,7 @@ class Racer:
             self.update_enemy_pos()
             path_to_goal = self.a_star()
             if not path_to_goal:
-                self.say_decision_to_judge(self.calculate_decision(last_plan[-3]))
+                self.say_decision_to_judge(self.calculate_decision(last_plan[-2]))
                 continue 
             last_plan = path_to_goal
             next_move = path_to_goal[-2]

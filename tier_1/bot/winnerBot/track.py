@@ -10,11 +10,11 @@ class Track:
     start_position: tuple[int,int]
     
     def __init__(self):
-        self.race_track = self.__read_track__()
+        self.race_track = self.__read_track()
         self.goal_positions = self.__collect_goal_positions()
         self.TRACK_MAXIMUM_DISTANCE = self.TRACK_HEIGHT + self.TRACK_WIDTH
     
-    def __read_track__(self) -> np.ndarray:
+    def __read_track(self) -> np.ndarray:
         self.TRACK_HEIGHT, self.TRACK_WIDTH, self.PLAYERS_COUNT = map(int, input().split()) 
         raw_race_track = []
         for i in range(self.TRACK_HEIGHT):

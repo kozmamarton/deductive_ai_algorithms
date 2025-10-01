@@ -22,8 +22,8 @@ class RaceCar:
         return True
     
     def step_forward(self, dx: int, dy: int):
-        self.speed_vertical += dx
-        self.speed_horizontal += dy
+        self.speed_horizontal += dx
+        self.speed_vertical += dy
         
     def get_pos(self) -> tuple[int, int]:
         return (self.x_pos, self.y_pos)

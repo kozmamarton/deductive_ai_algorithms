@@ -316,6 +316,7 @@ function botAdaptor(method, map, observation) {
 }
 
 async function main() {
+  console.log('READY')
   const map = await read_map();
   const bot = new playerClass();
   let bot_initialised = false;

@@ -2,32 +2,40 @@ import argparse
 import pygame
 from judge import replay
 
-from typing import Optional
+from typing import Optional, ClassVar, NamedTuple
 
 class Screen:
     MARGIN = 10
     DEFAULT_TRACK_CELL_SIZE = 12
     DEFAULT_GRID_LINE_WIDTH = 1
-    TRACK_COLOURS = {
-        -1: 'red',
-        0: 'lightgreen',
-        1: 'green',
-        100: 'blue',
-    }
-    TRACK_GRID_COLOUR = (50, 50, 50, 100)
-    # stolen from Matplotlib's tab10
-    PLAYER_COLOURS = [[31, 119, 180], [255, 127, 14], [44, 160, 44],
-                      [214, 39, 40], [148, 103, 189], [140, 86, 75],
-                      [227, 119, 194], [127, 127, 127], [188, 189, 34],
-                      [23, 190, 207], [250, 128, 114], [255, 140, 0],
-                      [175, 238, 238], [0, 191, 255], [186, 85, 211],
-                      [255, 0, 255], [192, 192, 192], [178, 34, 34],
-                      [210, 105, 30], [255, 215, 0], [107, 142, 35],
-                      [184, 134, 11], [0, 250, 154], [47, 79, 79],
-                      [139, 0, 139], [220, 20, 60], [255, 127, 80], [0, 0, 128],
-                      [65, 105, 225], [255, 105, 180], [255, 239, 213]]
+    THIN_WALL_WIDTH = 3
+
+    class TrackColours(NamedTuple):
+        wall: pygame.Color = pygame.Color('red')
+        thin_wall: pygame.Color = pygame.Color('darkred')
+        road: pygame.Color = pygame.Color('lightgreen')
+        player_contour: pygame.Color = pygame.Color(50, 50, 50, 100)
+        grid: pygame.Color = pygame.Color('gray')
+        goal_cells: tuple[pygame.Color, pygame.Color] = (pygame.Color('black'),
+                                                         pygame.Color('white'))
+
+    TRACK_COLOURS = TrackColours()
+    # from Matplotlib's tab10
+    PLAYER_COLOURS: ClassVar[list[pygame.Color]] = [
+        pygame.Color(c) for c in
+        [[31, 119, 180], [255, 127, 14], [44, 160, 44], [214, 39, 40],
+         [148, 103, 189], [140, 86, 75], [227, 119, 194], [127, 127, 127],
+         [188, 189, 34], [23, 190, 207], [250, 128, 114], [255, 140, 0],
+         [175, 238, 238], [0, 191, 255], [186, 85, 211], [255, 0, 255],
+         [192, 192, 192], [178, 34, 34], [210, 105, 30], [255, 215, 0],
+         [107, 142, 35], [184, 134, 11], [0, 250, 154], [47, 79, 79],
+         [139, 0, 139], [220, 20, 60], [255, 127, 80], [0, 0, 128],
+         [65, 105, 225], [255, 105, 180], [255, 239, 213]]
+    ]
+    INACTIVE_PLAYER_ALPHA = 160
     FONT_SIZE = 30
-    FONT_COLOUR = (255, 255, 255)
+    FONT_COLOUR = pygame.Color(255, 255, 255)
+    BACKGROUND_COLOUR = pygame.Color('black')
 
     def __init__(self, env_info: replay.EnvInfo, cell_size: int):
         track_width = len(env_info.track[0])
@@ -74,9 +82,9 @@ class Screen:
                 # draw a rectangle if not in the last row or column
                 if i + 1 < len(env_info.track) and j + 1 < len(
                         env_info.track[0]):
-                    cell_color = self.TRACK_COLOURS[-1] if c[i][j] < 0 and c[
+                    cell_color = self.TRACK_COLOURS.wall if c[i][j] < 0 and c[
                         i + 1][j] < 0 and c[i][j + 1] < 0 and c[i + 1][
-                            j + 1] < 0 else self.TRACK_COLOURS[0]
+                            j + 1] < 0 else self.TRACK_COLOURS.road
                     pygame.draw.rect(
                         self.track_surface, cell_color,
                         pygame.Rect(j * self.track_cell_size,
@@ -85,24 +93,30 @@ class Screen:
                 # draw separating lines
                 x = j * self.track_cell_size
                 y = i * self.track_cell_size
-                border_color = 'darkred' if i > 0 and c[i][j] < 0 and c[
-                    i - 1][j] < 0 else 'gray'
+                if i > 0 and c[i][j] < 0 and c[i - 1][j] < 0:  # pylint: disable=chained-comparison
+                    border_color = self.TRACK_COLOURS.thin_wall
+                    border_width = self.THIN_WALL_WIDTH * self.grid_line_width
+                else:
+                    border_color = self.TRACK_COLOURS.grid
+                    border_width = self.grid_line_width
                 pygame.draw.line(
                     self.track_surface,
                     border_color, (x, y), (x, y - self.track_cell_size),
-                    width=(3 if border_color == 'darkred' else 1)
-                    * self.grid_line_width)
-                border_color = 'darkred' if j > 0 and c[i][j] < 0 and c[i][
-                    j - 1] < 0 else 'gray'
+                    width=border_width)
+                if j > 0 and c[i][j] < 0 and c[i][j - 1] < 0:  # pylint: disable=chained-comparison
+                    border_color = self.TRACK_COLOURS.thin_wall
+                    border_width = self.THIN_WALL_WIDTH * self.grid_line_width
+                else:
+                    border_color = self.TRACK_COLOURS.grid
+                    border_width = self.grid_line_width
                 pygame.draw.line(
                     self.track_surface,
                     border_color, (x, y), (x - self.track_cell_size, y),
-                    width=(3 if border_color == 'darkred' else 1)
-                    * self.grid_line_width)
+                    width=border_width)
                 # draw goal field
                 if c[i][j] == 100:
                     pygame.draw.rect(
-                        grid_surface, 'black' if (i+j) % 2 == 0 else 'white',
+                        grid_surface, self.TRACK_COLOURS.goal_cells[(i+j) % 2],
                         pygame.Rect((j-0.5) * self.track_cell_size,
                                     (i-0.5) * self.track_cell_size,
                                     self.track_cell_size, self.track_cell_size))
@@ -118,7 +132,7 @@ class Screen:
                                self.track_cell_size / 3 + 1)
             pygame.draw.circle(
                 self.screen,
-                self.TRACK_GRID_COLOUR, (x, y),
+                self.TRACK_COLOURS.player_contour, (x, y),
                 self.track_cell_size / 3 + 1,
                 width=1)
 
@@ -130,16 +144,18 @@ class Screen:
         for i, p in enumerate(state.players):
             y, x = self._cell_pos(p.x, p.y)
             y2, x2 = self._cell_pos(p.x + p.vel_x, p.y + p.vel_y)
+            inactive_player_colour = pygame.Color(self.PLAYER_COLOURS[i])
+            inactive_player_colour.a = self.INACTIVE_PLAYER_ALPHA
             pygame.draw.line(
                 buffer,
-                self.PLAYER_COLOURS[i] + [160], (x, y), (x2, y2),
+                inactive_player_colour, (x, y), (x2, y2),
                 width=self.trace_width)
             for yy in range(p.y + p.vel_y - 1, p.y + p.vel_y + 2):  # [-1,0;1]
                 for xx in range(p.x + p.vel_x - 1,
                                 p.x + p.vel_x + 2):  # [-1,0;1]
                     y, x = self._cell_pos(xx, yy)
-                    pygame.draw.circle(buffer, self.PLAYER_COLOURS[i] + [160],
-                                       (x, y), self.track_cell_size / 4 + 1)
+                    pygame.draw.circle(buffer, inactive_player_colour, (x, y),
+                                       self.track_cell_size / 4 + 1)
         self.screen.blit(buffer, (0, 0))
 
     def draw_backward_arrows(self, last_state: replay.State,
@@ -171,7 +187,7 @@ class Screen:
         self.screen.blit(buffer, (0, 0))
 
     def print_info(self, t: int | str, last_step: Optional[replay.PlayerStep]):
-        line = self.font.render(f'Turn: {t}', True, self.FONT_COLOUR, 'black')
+        line = self.font.render(f'Turn: {t}', True, self.FONT_COLOUR, self.BACKGROUND_COLOUR)
         y = 2 * self.MARGIN + self.track_height
         self.screen.blit(line, (self.MARGIN, y))
         if last_step is not None:
@@ -185,9 +201,9 @@ class Screen:
                     f'last move: dx: {last_step.dx} dy: {last_step.dy}')
             player_legend = self.font.render(
                 f'Player {self.player_names[last_step.player_ind]}: ', True,
-                self.PLAYER_COLOURS[last_step.player_ind], 'black')
+                self.PLAYER_COLOURS[last_step.player_ind], self.BACKGROUND_COLOUR)
             status_line = self.font.render(f'{step_text}', True,
-                                           self.FONT_COLOUR, 'black')
+                                           self.FONT_COLOUR, self.BACKGROUND_COLOUR)
             self.screen.blit(player_legend, (self.MARGIN, y))
             self.screen.blit(status_line,
                              (self.MARGIN + player_legend.get_width(), y))
@@ -196,8 +212,8 @@ class Screen:
                  state: replay.State,
                  last_state: Optional[replay.State],
                  last_step: Optional[replay.PlayerStep],
-                 max_t: Optional[str] = None) -> None:
-        self.screen.fill('black')
+                 max_t: Optional[str | int] = None) -> None:
+        self.screen.fill(self.BACKGROUND_COLOUR)
         self.draw_track()
         self.draw_players(state)
         self.draw_forward_arrows(state)
@@ -227,7 +243,7 @@ def app(history: replay.Replay, cell_size: int):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RIGHT:
                     playdir = 1
-                if event.key == pygame.K_LEFT:
+                elif event.key == pygame.K_LEFT:
                     playdir = -1
             elif event.type == pygame.KEYUP:
                 playdir = 0

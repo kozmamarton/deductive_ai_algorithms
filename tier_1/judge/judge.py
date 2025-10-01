@@ -139,7 +139,7 @@ class EnvironmentRunner:
                 print('Warning: connection timed out. May not have '
                       'enough players.')
                 break
-            clientsocket.settimeout(self.step_timeout)
+            clientsocket.settimeout(3 * self.step_timeout)
             address, _port = address
             if client_addresses and player_names:
                 # find the name corresponding to the address
@@ -205,8 +205,6 @@ class EnvironmentRunner:
                     tick = time.perf_counter()
                     player_input = self.env.read_player_input(
                         lambda: self._read_from_client(current_player))
-                    #print('Player', self._player_name(current_player),
-                    #      'input:', player_input)
                     tock = time.perf_counter()
                     if tock - tick > self.step_timeout:
                         player_input = None
@@ -319,6 +317,9 @@ class App:
                   'replacing it with command line argument value '
                   f'({self._options["num_players"]}->{arguments.num_players}).')
         self._options['num_players'] = arguments.num_players
+        if self._options['num_players'] <= 0:
+            raise ValueError(
+                f'Invalid number of players: {self._options["num_players"]}')
         if arguments.client_addresses:
             self._client_addresses = arguments.client_addresses.split(';')
             assert (len(self._client_addresses)

@@ -1,3 +1,6 @@
+from queue import LifoQueue
+import numpy as np
+
 
 class RaceCar:
     x_pos: int
@@ -15,8 +18,12 @@ class RaceCar:
         judge_input = input()
         if judge_input == '~~~END~~~':
             return False
-        self.x_pos, self.y_pos, self.speed_horizontal, self.speed_vertical = map(int, judge_input.split(' '))
+        self.x_pos, self.y_pos, self.speed_horizontal, self.speed_vertical = map(int, judge_input.split())
         return True
+    
+    def step_forward(self, dx: int, dy: int):
+        self.speed_horizontal += dx
+        self.speed_vertical += dy
         
     def get_pos(self) -> tuple[int, int]:
         return (self.x_pos, self.y_pos)

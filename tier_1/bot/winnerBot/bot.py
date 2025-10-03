@@ -31,6 +31,47 @@ class Racer:
         curr_vel = self.ktm_exc.get_speed()
         return (position[0] + dx + curr_vel[0], position[1] + dy + curr_vel[1])
     
+    def traversable(self,cell_value: int) -> bool:
+        return cell_value >= 0
+
+    def valid_line(self, pos1: np.ndarray, pos2: np.ndarray) -> bool:
+        track = self.track.get_track()
+        if (np.any(pos1 < 0) or np.any(pos2 < 0) or np.any(pos1 >= track.shape)
+                or np.any(pos2 >= track.shape)):
+            return False
+        diff = pos2 - pos1
+        # Go through the straight line connecting ``pos1`` and ``pos2``
+        # cell-by-cell. Wall is blocking if either it is straight in the way or
+        # there are two wall cells above/below each other and the line would go
+        # "through" them.
+        if diff[0] != 0:
+            slope = diff[1] / diff[0]
+            d = np.sign(diff[0])  # direction: left or right
+            for i in range(abs(diff[0]) + 1):
+                x = pos1[0] + i*d
+                y = pos1[1] + i*slope*d
+                y_ceil = np.ceil(y).astype(int)
+                y_floor = np.floor(y).astype(int)
+                if (not self.traversable(track[x, y_ceil])
+                        and not self.traversable(track[x, y_floor])):
+                    return False
+        # Do the same, but examine two-cell-wall configurations when they are
+        # side-by-side (east-west).
+        if diff[1] != 0:
+            slope = diff[0] / diff[1]
+            d = np.sign(diff[1])  # direction: up or down
+            for i in range(abs(diff[1]) + 1):
+                x = pos1[0] + i*slope*d
+                y = pos1[1] + i*d
+                x_ceil = np.ceil(x).astype(int)
+                x_floor = np.floor(x).astype(int)
+                if (not self.traversable(track[x_ceil, y])
+                        and not self.traversable(track[x_floor, y])):
+                    return False
+        return True
+    
+    
+    
     def valid_move(self, start, pos : tuple[int, int], speed):
         for enemy in self.enemies:
             if enemy.x == pos[0] and enemy.y == pos[1]:
@@ -41,7 +82,8 @@ class Racer:
             0 <= pos[1] < track.shape[1] and \
             track[pos[0], pos[1]] >= 0 and \
             -1 <= abs(speed[0]) - abs(pos[0] - start[0]) <= 1 and \
-            -1 <= abs(speed[1]) - abs(pos[1] - start[1]) <= 1
+            -1 <= abs(speed[1]) - abs(pos[1] - start[1]) <= 1 and \
+                self.valid_line(np.array(start),np.array(pos))
         
     def is_goal(self, position : tuple[int, int]) -> bool:
         return (np.array(position) == self.track.goal_positions).all(1).any()
@@ -113,7 +155,9 @@ class Racer:
             if(len(last_plan)>0):
                 self.say_decision_to_judge(self.calculate_decision(last_plan[-2]))
                 continue
-            self.say_decision_to_judge((0,0))
+            import random
+            r = random.Random()
+            self.say_decision_to_judge((r.randint(-1,1),r.randint(-1,1)))
             
             
     

@@ -25,7 +25,7 @@ Start-Sleep -Seconds 3
 Write-Host "starting players"
 
 #Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/naive_astar_no_speed.py" -NoNewWindow
-Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/winnerBot/kozma_bot.py" -NoNewWindow
+Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/winnerBot/bot.py" -NoNewWindow
 
 # Wait for judge process to complete
 Get-Process python | Wait-Process

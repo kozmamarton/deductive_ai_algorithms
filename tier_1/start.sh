@@ -25,7 +25,7 @@ sleep 3
 echo "starting players"
 
 python3 $bots_dir"client_bridge.py" "bot/naive_astar_no_speed.py" &
-python3 $bots_dir"client_bridge.py" "bot/winnerBot/kozma_bot.py" &
+python3 $bots_dir"client_bridge.py" "bot/winnerBot/bot.py" &
 
 
 wait

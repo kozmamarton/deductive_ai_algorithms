@@ -57,8 +57,10 @@ class Racer:
         closestGoal = min(goals, key=lambda x: self.heuristic (start, x))
         f_score = {start: self.heuristic(start, closestGoal)}
 
-        while openSet:
+        while openSet:            
             current = min(openSet, key=lambda x: f_score[x])
+            if parent.get(current) != None:
+                current_speed = (current[0] - parent[current][0], current[1] - parent[current][1])
             if (np.array(current) == goals).all(1).any():
                 path = [current]
                 while current in parent:
@@ -68,11 +70,12 @@ class Racer:
 
             openSet.remove(current)
             closedSet.add(current)
+            illegal = 0
             for dx, dy in [(i,j) for i in range(-1,2) for j in range(-1, 2)]:
                 
-                child = (current[0] + dx, current[1] + dy)
-               # self.logger(child)
-                if not self.valid_move(current,child,current_speed) or child in closedSet:
+                child = (current[0] + dx + current_speed[0] , current[1] + dy + current_speed[1])
+                if not self.valid_move(current,child,current_speed) or child in closedSet or abs(dx + current_speed[0])>2 or abs(dy + current_speed[1]) >2:
+                    illegal+=1
                     continue
                 if child not in openSet:
                     openSet.add(child)
@@ -80,6 +83,8 @@ class Racer:
                     g_score[child] = g_score[current] + 1
                     closestGoal = min(goals, key=lambda x: self.heuristic(child, x))
                     f_score[child] = g_score[child] + self.heuristic(child, closestGoal)
+                
+                
         return None
     
     
@@ -99,13 +104,17 @@ class Racer:
         while self.ktm_exc.read_input():
             self.update_enemy_pos()
             path_to_goal = self.a_star()
-            if not path_to_goal:
-                self.say_decision_to_judge(self.calculate_decision(last_plan[-2]))
+            if path_to_goal:
+                last_plan = path_to_goal
+                next_move = path_to_goal[-2]
+                self.way_behind.append(next_move)
+                self.say_decision_to_judge(self.calculate_decision(next_move))
                 continue 
-            last_plan = path_to_goal
-            next_move = path_to_goal[-2]
-            self.way_behind.append(next_move)
-            self.say_decision_to_judge(self.calculate_decision(next_move))
+            if(len(last_plan)>0):
+                self.say_decision_to_judge(self.calculate_decision(last_plan[-2]))
+                continue
+            self.say_decision_to_judge((0,0))
+            
             
     
     def update_enemy_pos(self):

@@ -25,7 +25,13 @@ sleep 3
 echo "starting players"
 
 python3 $bots_dir"client_bridge.py" "bot/naive_astar_no_speed.py" &
+sleep 1
 python3 $bots_dir"client_bridge.py" "bot/winnerBot/bot.py" &
+sleep 1
+python3 $bots_dir"client_bridge.py" "bot/bot_3_max/bot.py" &
+sleep 1
+python3 $bots_dir"client_bridge.py" "bot/lieutenant_crown_him_with_many_crowns_thy_full_gallant_legions_he_found_it_in_him_to_forgive.py" &
+
 
 
 wait

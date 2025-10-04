@@ -53,7 +53,7 @@ class Racer:
             path.append(iterator)
         return path
                 
-    def a_star(self):
+    def a_star(self, SPEED_LIMIT: tuple[int,int]):
         start = self.ktm_exc.get_pos()
         current_speed = self.ktm_exc.get_speed()
         goals = self.track.get_goals()
@@ -77,8 +77,8 @@ class Racer:
                 child = self.calculate_pos_from_velocity(current,current_speed, (dx,dy))
                 if not self.valid_move(current,child,current_speed) \
                     or child in closedSet or child in openSet \
-                    or abs(dx + current_speed[0])>2 \
-                    or abs(dy + current_speed[1])>2:
+                    or abs(dx + current_speed[0])>SPEED_LIMIT[0] \
+                    or abs(dy + current_speed[1])>SPEED_LIMIT[1]:
                     continue
                 
                 parent[child] = current
@@ -100,25 +100,29 @@ class Racer:
     def race(self):
         last_plan = []
         failed = 0
+        
         while self.ktm_exc.read_input():
             self.update_enemy_pos()
-            path_to_goal = self.a_star()
             
+            for velocity in range(3,0,-1):
+                path_to_goal = self.a_star((velocity,velocity))
+                if path_to_goal:
+                    break
             if path_to_goal:
                 last_plan = path_to_goal
                 next_move = path_to_goal[-2]
                 self.say_decision_to_judge(self.calculate_decision(next_move))
                 failed = 0
                 continue 
-            
+            #if any attempt to calculate a path with a* is failed we stick to the latest calculated path
             if(len(last_plan)>0):
                 self.say_decision_to_judge(self.calculate_decision(last_plan[-3 - failed]))
                 failed+=1
                 continue
-            
+            #if there isn't any calculated path ever, then we do some BogoNav and hope we will find a solution later
             import random
             r = random.Random()
-            self.say_decision_to_judge(r.randint(-1,1),r.randint(-1,1))
+            self.say_decision_to_judge((r.randint(-1,1),r.randint(-1,1)))
     
     def update_enemy_pos(self):
         """Updates all the enemies positions

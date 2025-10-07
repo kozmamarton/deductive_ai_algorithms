@@ -104,7 +104,7 @@ class Racer:
         while self.ktm_exc.read_input():
             self.update_enemy_pos()
             
-            for velocity in range(3,0,-1):
+            for velocity in range(6,0,-1):
                 path_to_goal = self.a_star((velocity,velocity))
                 if path_to_goal:
                     break

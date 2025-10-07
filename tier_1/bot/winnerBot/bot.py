@@ -3,6 +3,10 @@ from track import Track
 from race_car import RaceCar
 from enemy import EnemyRacer
 from logger import get_logger
+import heapq
+import math
+from utility import *
+
 
 class Racer:
     track : Track
@@ -10,7 +14,7 @@ class Racer:
     enemies : list[EnemyRacer]
     logger : callable
     POSSIBLE_DIRECTIONS : list[tuple[int,int]]
-    MAXIMUM_SPEED: int = 6
+    MAXIMUM_SPEED: int = 2
     
     def __init__(self):
         self.track = Track()
@@ -22,7 +26,12 @@ class Racer:
         self.POSSIBLE_DIRECTIONS = [(i,j) for i in range(-1,2) for j in range(-1,2)]
         
     def heuristic(self, start , goal):
-        return np.linalg.norm(np.array(start) - np.array(goal))    
+        dx = goal[0] - start[0]
+        dy = goal[1] - start[1]
+        dist = math.hypot(dx, dy)
+        # estimate minimal time using bang-bang (accel + decel)
+        return 2 * math.sqrt(dist)
+        #return np.linalg.norm(np.array(start) - np.array(goal))    
     
     
     def calculate_pos_from_velocity(self, position: tuple[int,int], current_speed: tuple = None, desired_velocity : tuple = (0,0)) -> tuple[int,int]:
@@ -38,10 +47,10 @@ class Racer:
         track = self.track.get_track()
         return 0 <= pos[0] < self.track.TRACK_HEIGHT and \
             0 <= pos[1] < self.track.TRACK_WIDTH and \
-            track[pos[0], pos[1]] >= 0 and \
-            -1 <= abs(speed[0]) - abs(pos[0] - start[0]) <= 1 and \
-            -1 <= abs(speed[1]) - abs(pos[1] - start[1]) <= 1 and \
-                self.track.valid_line(np.array(start),np.array(pos))
+            track[pos[0], pos[1]] >= 0 and self.track.valid_line(np.array(start),np.array(pos))
+           # -1 <= abs(speed[0]) - abs(pos[0] - start[0]) <= 1 and \
+           # -1 <= abs(speed[1]) - abs(pos[1] - start[1]) <= 1 and \
+                
         
     def is_goal(self, position : tuple[int, int]) -> bool:
         return (np.array(position) == self.track.get_goals()).all(1).any()
@@ -53,6 +62,53 @@ class Racer:
             iterator = tree[iterator]
             path.append(iterator)
         return path
+
+    def min_steps_a_star(self, result_queue):
+        # state = (x, y, vx, vy)
+        start = self.ktm_exc.get_pos()
+        start_state = (*start, *self.ktm_exc.get_speed())
+        goals = self.track.get_goals()
+        closest_goal = min(goals, key=lambda x: self.heuristic(start, x))           
+
+        pq = [(0, start_state)]  # (f, state)
+        g_score = {start_state: 0}
+        visited = set()
+        parent = {}
+        while pq:
+            f, (x, y, vx, vy) = heapq.heappop(pq)
+            current_pos = (x,y)
+            current_speed = (vx,vy)
+            current_state =  (*current_pos, *current_speed)
+            
+            if self.is_goal(current_pos) and vx == 0 and vy == 0:
+                result_queue.put(self.__retrieve_path(current_state,parent))
+            
+            if current_state in visited:
+                continue
+            visited.add(current_state)
+
+            for ax,ay in self.POSSIBLE_DIRECTIONS:
+                nvx = vx + ax
+                nvy = vy + ay
+                nx = x + nvx
+                ny = y + nvy
+
+                new_pos = (nx,ny)
+                new_state = (*new_pos, nvx, nvy)
+                new_cost = g_score[(x, y, vx, vy)] + 1
+
+                if new_state in visited or not self.valid_move(current_pos, new_pos,(nvx,nvy)):
+                    continue
+                old_cost = g_score.get(new_state, math.inf)
+                if new_cost < old_cost:
+                    g_score[new_state] = new_cost
+                    closest_goal = min(goals, key=lambda x: self.heuristic(new_pos, x))
+                    f_score = new_cost + self.heuristic((nx, ny),closest_goal)
+                    parent[new_state] = current_state
+                    heapq.heappush(pq, (f_score, new_state))
+
+        return None  # unreachable
+
                 
     def a_star(self, SPEED_LIMIT: tuple[int,int]):
         start = self.ktm_exc.get_pos()
@@ -105,10 +161,12 @@ class Racer:
         while self.ktm_exc.read_input():
             self.update_enemy_pos()
             
+            path_to_goal = run_with_timeout(self.min_steps_a_star,0.8)
             for velocity in range(self.MAXIMUM_SPEED,0,-1):
-                path_to_goal = self.a_star((velocity,velocity))
                 if path_to_goal:
                     break
+                path_to_goal = self.a_star((velocity,velocity))
+            
             if path_to_goal:
                 last_plan = path_to_goal
                 next_move = path_to_goal[-2]

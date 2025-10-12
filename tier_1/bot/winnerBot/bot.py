@@ -14,7 +14,7 @@ class Racer:
     enemies : list[EnemyRacer]
     logger : callable
     POSSIBLE_DIRECTIONS : list[tuple[int,int]]
-    MAXIMUM_SPEED: int = 3
+    MAXIMUM_SPEED: int = 6
     
     def __init__(self):
         self.track = Track()
@@ -166,37 +166,39 @@ class Racer:
         last_plan = []
         failed = 0
         timeout_seconds = 0.95
-        with Pool(processes=2) as pool:
-            while self.ktm_exc.read_input():
-                self.update_enemy_pos()
-                # Start both concurrently
-                res1 = pool.apply_async(self.a_star_variable_speeds, [])
-                res2 = pool.apply_async(self.min_steps_a_star, [])
+        #with Pool(processes=2) as pool:
+        while self.ktm_exc.read_input():
+            self.update_enemy_pos()
+            '''
+            res1 = pool.apply_async(self.a_star_variable_speeds, [])
+            res2 = pool.apply_async(self.min_steps_a_star, [])
 
-                try:
-                    result2 = res2.get(timeout=timeout_seconds)
-                except Exception:
-                    result2 = None
+            try:
+                result2 = res2.get(timeout=timeout_seconds)
+            except Exception:
+                result2 = None
 
-                result1 = res1.get()
-                
-                path_to_goal = result2 if result2 != None else result1
-                
-                if path_to_goal:
-                    last_plan = path_to_goal
-                    next_move = path_to_goal[-2]
-                    self.say_decision_to_judge(self.calculate_decision(next_move))
-                    failed = 0
-                    continue 
-                #if any attempt to calculate a path with a* is failed we stick to the latest calculated path
-                if(len(last_plan)>0):
-                    self.say_decision_to_judge(self.calculate_decision(last_plan[-3 - failed]))
-                    failed+=1
-                    continue
-                #if there isn't any calculated path ever, then we do some BogoNav and hope we will find a solution later
-                import random
-                r = random.Random()
-                self.say_decision_to_judge((r.randint(-1,1),r.randint(-1,1)))
+            result1 = res1.get()
+            
+            path_to_goal = result2 if result2 != None else result1
+            '''
+            
+            path_to_goal = self.a_star_variable_speeds()
+            if path_to_goal:
+                last_plan = path_to_goal
+                next_move = path_to_goal[-2]
+                self.say_decision_to_judge(self.calculate_decision(next_move))
+                failed = 0
+                continue 
+            #if any attempt to calculate a path with a* is failed we stick to the latest calculated path
+            if(len(last_plan)>0):
+                self.say_decision_to_judge(self.calculate_decision(last_plan[-3 - failed]))
+                failed+=1
+                continue
+            #if there isn't any calculated path ever, then we do some BogoNav and hope we will find a solution later
+            import random
+            r = random.Random()
+            self.say_decision_to_judge((r.randint(-1,1),r.randint(-1,1)))
 
     
     def update_enemy_pos(self):

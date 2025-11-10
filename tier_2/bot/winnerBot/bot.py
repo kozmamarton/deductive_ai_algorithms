@@ -12,9 +12,8 @@ class Racer:
     ktm_exc : RaceCar
     enemies : list[EnemyRacer]
     logger : callable
-    way_behind: set
     POSSIBLE_DIRECTIONS : list[tuple[int,int]]
-    MAXIMUM_SPEED: int = 2
+    MAXIMUM_SPEED: int = 4
     SIZE_OF_SUBGOALS: int = 5
     
     
@@ -25,8 +24,8 @@ class Racer:
         for i in range(0, self.track.PLAYERS_COUNT):
             self.enemies.append(EnemyRacer(i))
         self.logger = get_logger()
-        self.way_behind = set()
         self.POSSIBLE_DIRECTIONS = [(i,j) for i in range(-1,2) for j in range(-1,2)]
+        self.goal_history = []
 
         
     def update_enemy_pos(self):
@@ -47,12 +46,13 @@ class Racer:
         Returns:
             float: The approximated distance from the start position to the goal position.
         """
+        
         dx = goal[0] - start[0]
         dy = goal[1] - start[1]
         dist = math.hypot(dx, dy)
         # estimate minimal time using bang-bang (accel + decel)
         return 2 * math.sqrt(dist)
-
+     
         #return np.linalg.norm(np.array(start) - np.array(goal))    
     
     
@@ -67,7 +67,7 @@ class Racer:
         Returns:
             tuple[int,int]: The new position with the given parameters.
         """
-        if not current_speed:
+        if current_speed is None:
             current_speed = self.ktm_exc.get_speed() 
         return (position[0] + desired_velocity[0] + current_speed[0], position[1] + desired_velocity[1] + current_speed[1])    
     
@@ -112,8 +112,6 @@ class Racer:
         Returns:
             bool: Wether the position is a goal position or not.
         """
-        if type(goal) == type(None) or len(self.track.get_goals())>0:
-            return (np.array(position) == self.track.get_goals()).all(1).any()
         return position == goal
                 
     def __retrieve_path(self, root: tuple[int, int], tree: dict) -> list[tuple[int, int]]:
@@ -134,86 +132,47 @@ class Racer:
             path.append(iterator)
         return path[::-1]
     
-    def get_neighboring_positions(self, node: tuple[int,int]):
+    def get_neighbor_nodes(self, node: tuple[int,int]):
         return [(i[0]+node[0], i[1] + node[1]) for i in self.POSSIBLE_DIRECTIONS \
             if self.track.TRACK_HEIGHT> i[0]+node[0] >= 0 and self.track.TRACK_WIDTH> i[1]+node[1] >= 0]
-        
-    
-    def get_subgoals(self):
-        visible_track = self.track.get_visible_track()
-        #self.logger(visible_track)
-        subgoals = []
-        neighbours = {}
-        for i in visible_track:
-            node = tuple(i)
-            if node in self.ktm_exc.position_history:
-                #self.logger("skip happened!")
-                continue
-            if self.track.map[node] == 3:
-                continue
-            neighbours[node] = 0
-            surrounding_nodes = self.get_neighboring_positions(i)
-            for j in surrounding_nodes:
-                if self.track.map[j] != 3:
-                    continue
-                neighbours[node] +=1
-        top_nodes = sorted(neighbours.items(), key= lambda x: x[1], reverse=True)[:self.SIZE_OF_SUBGOALS]
-        for i in top_nodes:
-            subgoals.append(i[0])
-        return subgoals
-        
 
-    def min_steps_a_star(self):
-        """Min steps a star. A modified a star that searches every possible path with every possible speed. 
-         This function has terrible complexity, approximately O(n^8) where n is the total number of available positions.
-         Recommended use is to run in parallel with the speed limited astar and set a timeout for this little baby because it can take 1-3 entire seconds in each turn to calculate a valid path.
-
-        Returns:
-            list[tuple[int,int]]: A list containing the path to the goal.
-        """
-        start = self.ktm_exc.get_pos()
-        start_state = (*start, *self.ktm_exc.get_speed())
-        goals = self.track.get_goals()
-        closest_goal = min(goals, key=lambda x: self.heuristic(start, x))           
-
-        pq = [(0, start_state)]  # (f, state)
-        g_score = {start_state: 0}
-        visited = set()
-        parent = {}
-        while pq:
-            f, (x, y, speed_x, speed_y) = heapq.heappop(pq)
-            current_pos = (x,y)
-            current_speed = (speed_x,speed_y)
-            current_state =  (*current_pos, *current_speed)
+    def get_subgoals(self, current_pos: tuple[int,int] ):
+            visible_track = self.track.get_visible_track()
+            subgoals = []
+            unknown_neighbor_count = {}
             
-            if self.is_goal(current_pos) and speed_x == 0 and speed_y == 0:
-                return self.__retrieve_path(current_state,parent)
-            
-            if current_state in visited:
-                continue
-            visited.add(current_state)
-
-            for dx,dy in self.POSSIBLE_DIRECTIONS:
-                child_speed = (speed_x + dx, speed_y + dy)
-
-                child_pos = self.calculate_pos_from_velocity(current_pos,child_speed)
-                child = (*child_pos,*child_speed)
-                child_cost = g_score[(x, y, speed_x, speed_y)] + 1
-
-                if child in visited or not self.valid_move(current_pos, child_pos,child_speed):
+            for i in visible_track:
+                node = tuple(i)
+                node_value = self.track.get_cell_value(node)
+                if not self.track.traversable(node_value) or node == current_pos \
+                    or self.track.get_cell_value(node)==3:
                     continue
-                old_cost = g_score.get(child, math.inf)
-                if child_cost < old_cost:
-                    g_score[child] = child_cost
-                    closest_goal = min(goals, key=lambda x: self.heuristic(child_pos, x))
-                    f_score = child_cost + self.heuristic(child_speed,closest_goal)
-                    parent[child] = current_state
-                    heapq.heappush(pq, (f_score, child))
-
-        return None
-
+                if self.heuristic(current_pos, node) < self.track.VISIBILITY_RADIUS/2:
+                    continue
+                if self.track.get_cell_value(node) == 100:
+                    subgoals.append(node)
+                    continue
                 
-    def a_star(self, SPEED_LIMIT: tuple[int,int]) -> list[tuple[int,int]]:
+                unknown_neighbor_count[node] = 0
+                neighbors = self.get_neighbor_nodes(node)
+                for neighbor in neighbors:
+                    if neighbor == node:
+                        continue
+                    if self.track.get_cell_value(neighbor) == 3:
+                        unknown_neighbor_count[node] +=1
+            nodes_with_most_neighbors = sorted(unknown_neighbor_count.items(), key=lambda x: x[1], reverse=True)
+            
+            for item in nodes_with_most_neighbors:
+                if item[0] in self.goal_history \
+                    or not self.ktm_exc.position_history.count(item[0])==0:
+                    continue
+                #if self.heuristic(item[0], self.track.get_start()[0]) < self.heuristic(self.ktm_exc.position_history[-1], self.track.get_start()[0]):
+                    #continue
+                subgoals.append(item[0])
+                
+            return subgoals[:self.SIZE_OF_SUBGOALS]
+                
+    def a_star(self, SPEED_LIMIT: tuple[int,int], goal : tuple[int,int]) -> list[tuple[int,int]]:
         """Modified astar algorithm that calculates a path with the maximum speed set in param 1.
             The main modification on vanilla astar is that when we calculate the path, we calculate the speed dynamically 
             Usually this doesn't work above (2,2) as max speed, because the closed set saves only the positions and not the speeds. 
@@ -229,18 +188,21 @@ class Racer:
             
         start = self.ktm_exc.get_pos()
         current_speed = self.ktm_exc.get_speed()
-        goals = self.track.get_goals() if len(self.track.get_goals())>1 else self.get_subgoals() 
+            
         open_set = {start}
         closed_set = set()
         parent = {}
         g_score = {start: 0}
-        closest_goal = min(goals, key=lambda x: self.heuristic (start, x))
-        f_score = {start: self.heuristic(start, closest_goal)}
+     
+        f_score = {start: self.heuristic(start, goal)}
+        self.logger(f"goal is {goal}")
+        self.logger(self.track.map[goal])
         while open_set:            
             current = min(open_set, key=lambda x: f_score[x])
             if parent.get(current) != None:
                 current_speed = (current[0] - parent[current][0], current[1] - parent[current][1])
-            if self.is_goal(current,closest_goal):
+                
+            if self.is_goal(current,goal):
                return self.__retrieve_path(current, parent)
 
             open_set.remove(current)
@@ -250,56 +212,23 @@ class Racer:
                 if not self.valid_move(current,child,current_speed) \
                     or child in closed_set or child in open_set \
                     or abs(dx + current_speed[0])>SPEED_LIMIT[0] \
-                    or abs(dy + current_speed[1])>SPEED_LIMIT[1] \
-                    or child in self.way_behind:
+                    or abs(dy + current_speed[1])>SPEED_LIMIT[1]: #or child in self.ktm_exc.position_history:
                     continue
                 
                 parent[child] = current
                 g_score[child] = g_score[current] + 1
-                closest_goal = min(goals, key=lambda x: self.heuristic(child, x))
-                f_score[child] = g_score[child] + self.heuristic(child, closest_goal)
+                #closest_goal = min(goals, key=lambda x: self.heuristic(child, x))
+                f_score[child] = g_score[child] + self.heuristic(child, goal)
                 open_set.add(child)    
         return None
     
+    def get_a_valid_move(self, position: tuple[int,int]) -> tuple[int,int]:
+        for dx, dy in self.POSSIBLE_DIRECTIONS:
+            child = self.calculate_pos_from_velocity(position, desired_velocity = (dx,dy))
+            if self.valid_move(position, child):
+                return (dx,dy)
+        return (0,0)
     
-
-
-    def bfs(self):
-        """Breadth first search. This works the best so far, because in this grid race, every direction costs the same, and therefore, heuristics can be misleading.
-            We check every direction with dynamic speed just like in the modified astar but we don't use heuiristics because every grid has the same cost to get to.
-            Although this is fast, on large maps the complexity is big, so to run in parallel with a speed limited astar is strongly advised.
-        Returns:
-           list[tuple[int,int]]:  A list containing the path to the goal.
-        """
-        start = self.ktm_exc.get_pos()
-        queue = deque()
-        queue.append((start, self.ktm_exc.get_speed(), [start])) #pos, velocity, path
-        visited = set()
-        visited.add((start, self.ktm_exc.get_speed()))
-
-        while queue:
-            pos, vel, path = queue.popleft()
-
-            if self.is_goal(pos):
-                return path
-
-            for dx, dy in self.POSSIBLE_DIRECTIONS:
-                new_vel = (vel[0] + dx, vel[1] + dy)
-                new_pos = self.calculate_pos_from_velocity(pos, new_vel)#(pos[0] + new_vel[0], pos[1] + new_vel[1])
-
-                state = (new_pos, new_vel)
-                if state in visited:
-                    continue
-                if not self.valid_move(pos, new_pos, new_vel)\
-                    or abs(new_vel[0])>self.MAXIMUM_SPEED \
-                    or abs(new_vel[1])>self.MAXIMUM_SPEED \
-                    or new_pos in self.way_behind:
-                    continue
-
-                visited.add(state)
-                queue.append((new_pos, new_vel, path + [new_pos]))
-
-        return None    
     
     def calculate_decision(self, next_pos: tuple[int, int]) -> tuple[int, int]:
         current_pos = self.ktm_exc.get_pos()
@@ -312,61 +241,63 @@ class Racer:
         print(f'{decision[0]} {decision[1]}', flush=True)
     
     
-    def a_star_variable_speeds(self):
+    def a_star_variable_speeds(self, goal: tuple[int,int]) -> list[tuple[int,int]]:
         for velocity in range(self.MAXIMUM_SPEED,0,-1):
-            path_to_goal = self.a_star((velocity,velocity))
+            path_to_goal = self.a_star((velocity,velocity), goal=goal)
             if path_to_goal:
                 return path_to_goal
-                
+    
+    
     
     def race(self):
-        last_plan = []
-        failed = 0
-        while self.ktm_exc.read_input():
-            self.update_enemy_pos()
-            self.track.read_track(self.ktm_exc.get_pos())
-            path_to_goal = self.a_star_variable_speeds()
-            if path_to_goal:
-                last_plan = path_to_goal
-                next_move = path_to_goal[1]
-                self.way_behind.add(next_move)
-                self.say_decision_to_judge(self.calculate_decision(next_move))
-                failed = 0
-                continue 
-            #if any attempt to calculate a path with a* is failed we stick to the latest calculated path
-            if(1 + failed < len(last_plan) > 0 ):
-                next_move_from_last_plan = last_plan[1 + failed]
-                current_pos = self.ktm_exc.get_pos()
-                i = 0              
-                while not self.valid_move(current_pos,next_move_from_last_plan):
-                    next_move_from_last_plan = last_plan[1 + i]
-                    i += 1
-                    if i >= len(last_plan) -1:
-                        next_move_from_last_plan = None
-                        break
-                if next_move_from_last_plan:
-                    self.way_behind.add(next_move_from_last_plan)
-                    self.say_decision_to_judge(self.calculate_decision(next_move_from_last_plan))
-                    failed+=1
-                    continue
-            #if there isn't any calculated path ever, then we do some BogoNav and hope we will find a solution later
-            import random
-            r = random.Random()
-            self.say_decision_to_judge((0,0))
 
-    
-    def update_enemy_pos(self):
-        """Updates all the enemies positions
-        """
-        for enemy in self.enemies:
-            enemy.read_input()
+        goals = []
+        goal = (0,0)
+        last_plan = []
+        last_plan_index = 0
+        while self.ktm_exc.read_input():
+            
+            self.update_enemy_pos()
+            current_pos = self.ktm_exc.get_pos()
+            self.track.read_track(current_pos)
+            
+            #if not prev_goal or self.is_goal(current_pos, goal):
+            self.logger("Calculating subgoals")
+            goals = self.get_subgoals(current_pos)
+            goal = goals[0]#min(goals, key= lambda x: self.heuristic(self.track.get_start()[0],x))
+            
+            path_to_goal = self.a_star_variable_speeds(goal)
+      
+            if path_to_goal:
+                next_move = path_to_goal[1]
+                last_plan = path_to_goal[2:]
+                last_plan_index = 0
+                if next_move == goal:
+                    self.logger(f"{next_move}, {goal} is reached.")
+                    self.goal_history.extend(self.get_neighbor_nodes(goal))
+                self.say_decision_to_judge(self.calculate_decision(next_move))
+                continue
+            #self.say_decision_to_judge(self.get_a_valid_move(current_pos))
+
+            else:
+                if last_plan_index >= len(last_plan):
+                    self.logger(f"Getting a valid move only: {self.get_a_valid_move(current_pos)}")
+                    self.say_decision_to_judge(self.get_a_valid_move(current_pos))
+                    continue
+                self.logger(f"Next move from last plan: {self.calculate_decision(last_plan[last_plan_index])}, coords:{last_plan[last_plan_index]} , Current pos: {current_pos}, speed: {self.ktm_exc.get_speed()}")
+                if (self.valid_move(current_pos, last_plan[last_plan_index], self.ktm_exc.get_speed())):
+                    self.say_decision_to_judge(self.calculate_decision(last_plan[last_plan_index]))
+                    last_plan_index +=1
+                    continue
+                self.say_decision_to_judge(self.get_a_valid_move(current_pos))
+            
     
 def main():
     my_glorious_racer = Racer()
     my_glorious_racer.race()
         
 if __name__=='__main__':
-    print('READY', flush=True)  
+    print("READY", flush=True)  
     main()        
         
     

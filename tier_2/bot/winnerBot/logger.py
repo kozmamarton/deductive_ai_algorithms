@@ -1,14 +1,14 @@
 import datetime
 
-DEBUG = True
+DEBUG = False
 
 def get_logger():
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{timestamp}.mylog.log"
 
-    def log(message):
+    def log(message,eol = '\n'):
         if not DEBUG:
             return
         with open(filename, "a", encoding="utf-8") as f:
-            f.write(f"{message}\n")
+            f.write(f"{message}{eol}")
     return log

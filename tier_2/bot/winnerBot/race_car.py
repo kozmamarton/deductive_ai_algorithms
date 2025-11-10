@@ -19,7 +19,7 @@ class RaceCar:
         judge_input = input()
         if judge_input == '~~~END~~~':
             return False
-        self.y_pos, self.x_pos, self.speed_horizontal, self.speed_vertical = map(int, judge_input.split(' '))
+        self.x_pos, self.y_pos, self.speed_horizontal, self.speed_vertical = map(int, judge_input.split(' '))
         self.save_position()
         return True
         

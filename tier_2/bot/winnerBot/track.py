@@ -1,4 +1,9 @@
 import numpy as np
+from logger import get_logger
+
+DEBUG = False
+
+
 class Track:
     
     TRACK_WIDTH: int
@@ -13,6 +18,7 @@ class Track:
         self.__read_initial_props()
         self.TRACK_MAXIMUM_DISTANCE = self.TRACK_HEIGHT * self.TRACK_WIDTH
         self.map =np.full((self.TRACK_HEIGHT,self.TRACK_WIDTH),3,dtype=int)
+        self.mylogger = get_logger()
     
     def __read_initial_props(self):
         self.TRACK_HEIGHT, self.TRACK_WIDTH, self.PLAYERS_COUNT, self.VISIBILITY_RADIUS = map(int, input().split())  
@@ -31,9 +37,20 @@ class Track:
             if y_end > self.TRACK_WIDTH:
                 line = line[:-(y_end - self.TRACK_WIDTH)]
                 y_end = self.TRACK_WIDTH
+            #self.map[x, y_start:y_end] = line
             for column in range(len(line)):
-                if self.map[x,y_start+column] == 3:   
+                if self.map[x,y_start+column] == 3 and line[column] != 3:   
                     self.map[x, y_start+column] = line[column]
+                    
+        if DEBUG:
+            for i in range(self.map.shape[0]):
+                for j in range(self.map.shape[1]):
+                    if (i,j) == playerPos:
+                        self.mylogger('X',' ')
+                        continue
+                    cell_value = self.map[(i,j)]
+                    self.mylogger(cell_value,' ' if cell_value < 0 else '  ')
+                self.mylogger("")
        
           
     def get_track(self):
@@ -45,8 +62,17 @@ class Track:
     def get_goals(self):
         return np.argwhere(self.map == 100)
     
-    def __traversable(self,cell_value: int) -> bool:
-        return cell_value > -1 and cell_value != 3
+    def get_start(self):
+        return np.argwhere(self.map == 0)
+
+    def get_cell_value(self, coords: tuple[int,int]):
+        if coords[0] < 0 or coords[0] > self.map.shape[0]\
+            or coords[1] < 0 or coords[1] > self.map.shape[1]:
+                return -1
+        return self.map[coords]
+    
+    def traversable(self,cell_value: int) -> bool:
+        return cell_value > -1# and cell_value != 3
     
     def valid_line(self, pos1: np.ndarray, pos2: np.ndarray) -> bool:
         #stolen from lieutenant crown becuase i was lazy to write it myself but i understand how this works
@@ -67,8 +93,8 @@ class Track:
                 y = pos1[1] + i*slope*d
                 y_ceil = np.ceil(y).astype(int)
                 y_floor = np.floor(y).astype(int)
-                if (not self.__traversable(track[x, y_ceil])
-                        and not self.__traversable(track[x, y_floor])):
+                if (not self.traversable(track[x, y_ceil])
+                        and not self.traversable(track[x, y_floor])):
                     return False
         # Do the same, but examine two-cell-wall configurations when they are
         # side-by-side (east-west).
@@ -80,8 +106,8 @@ class Track:
                 y = pos1[1] + i*d
                 x_ceil = np.ceil(x).astype(int)
                 x_floor = np.floor(x).astype(int)
-                if (not self.__traversable(track[x_ceil, y])
-                        and not self.__traversable(track[x_floor, y])):
+                if (not self.traversable(track[x_ceil, y])
+                        and not self.traversable(track[x_floor, y])):
                     return False
         return True
     

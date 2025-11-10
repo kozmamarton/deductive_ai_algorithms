@@ -13,7 +13,7 @@ class Racer:
     enemies : list[EnemyRacer]
     logger : callable
     POSSIBLE_DIRECTIONS : list[tuple[int,int]]
-    MAXIMUM_SPEED: int = 4
+    MAXIMUM_SPEED: int = 0
     SIZE_OF_SUBGOALS: int = 5
     
     
@@ -25,7 +25,8 @@ class Racer:
             self.enemies.append(EnemyRacer(i))
         self.logger = get_logger()
         self.POSSIBLE_DIRECTIONS = [(i,j) for i in range(-1,2) for j in range(-1,2)]
-        self.goal_history = []
+        self.MAXIMUM_SPEED = min(self.track.VISIBILITY_RADIUS//2,4)
+        self.goal_history = set()
 
         
     def update_enemy_pos(self):
@@ -56,11 +57,11 @@ class Racer:
         #return np.linalg.norm(np.array(start) - np.array(goal))    
     
     
-    def calculate_pos_from_velocity(self, position: tuple[int,int], current_speed: tuple = None, desired_velocity : tuple = (0,0)) -> tuple[int,int]:
-        """Calculates the next position based on position and current speed, plus the desired velocity
+    def calculate_pos_from_velocity(self, start: tuple[int,int], current_speed: tuple = None, desired_velocity : tuple = (0,0)) -> tuple[int,int]:
+        """Calculates the next position based on start position param and current speed, plus the desired velocity
 
         Args:
-            position (tuple[int,int]): The starting position
+            start (tuple[int,int]): The starting position
             current_speed (tuple, optional): The current speed. Defaults to None. If none is given then we get our glorious ktm exc's position
             desired_velocity (tuple, optional): The desired acceleration. Defaults to (0,0).
 
@@ -69,7 +70,7 @@ class Racer:
         """
         if current_speed is None:
             current_speed = self.ktm_exc.get_speed() 
-        return (position[0] + desired_velocity[0] + current_speed[0], position[1] + desired_velocity[1] + current_speed[1])    
+        return (start[0] + desired_velocity[0] + current_speed[0], start[1] + desired_velocity[1] + current_speed[1])    
     
     def valid_move(self, start:tuple[int,int], pos : tuple[int, int], speed: tuple[int, int] = None) -> bool:
         """Returns if a move is valid or not. It checks:
@@ -147,10 +148,12 @@ class Racer:
                 if not self.track.traversable(node_value) or node == current_pos \
                     or self.track.get_cell_value(node)==3:
                     continue
-                if self.heuristic(current_pos, node) < self.track.VISIBILITY_RADIUS/2:
-                    continue
                 if self.track.get_cell_value(node) == 100:
+                    if self.track.valid_line(np.array(current_pos),i):
+                        return [node]
                     subgoals.append(node)
+                    continue
+                if self.heuristic(current_pos, node) < self.track.VISIBILITY_RADIUS/2:
                     continue
                 
                 unknown_neighbor_count[node] = 0
@@ -190,35 +193,41 @@ class Racer:
         current_speed = self.ktm_exc.get_speed()
             
         open_set = {start}
+        open_heap = []
+        heapq.heappush(open_heap, (0, start))
         closed_set = set()
         parent = {}
         g_score = {start: 0}
      
-        f_score = {start: self.heuristic(start, goal)}
         self.logger(f"goal is {goal}")
         self.logger(self.track.map[goal])
-        while open_set:            
-            current = min(open_set, key=lambda x: f_score[x])
+        while open_heap:
+                        
+            current = heapq.heappop(open_heap)[1]#min(open_set, key=lambda x: f_score[x])
             if parent.get(current) != None:
                 current_speed = (current[0] - parent[current][0], current[1] - parent[current][1])
                 
             if self.is_goal(current,goal):
-               return self.__retrieve_path(current, parent)
+                path = self.__retrieve_path(current, parent)
+                self.logger(f"Goal found!, current: {current}, goal: {goal},\n path: {path}")
+                return path
 
             open_set.remove(current)
             closed_set.add(current)
             for dx, dy in self.POSSIBLE_DIRECTIONS:
                 child = self.calculate_pos_from_velocity(current,current_speed, (dx,dy))
-                if not self.valid_move(current,child,current_speed) \
-                    or child in closed_set or child in open_set \
-                    or abs(dx + current_speed[0])>SPEED_LIMIT[0] \
-                    or abs(dy + current_speed[1])>SPEED_LIMIT[1]: #or child in self.ktm_exc.position_history:
+                
+                if (abs(dx + current_speed[0])>SPEED_LIMIT[0] 
+                    or abs(dy + current_speed[1])>SPEED_LIMIT[1] 
+                    or child in closed_set  
+                    or not self.valid_move(current,child,current_speed)
+                    or child in open_set):
                     continue
                 
                 parent[child] = current
                 g_score[child] = g_score[current] + 1
-                #closest_goal = min(goals, key=lambda x: self.heuristic(child, x))
-                f_score[child] = g_score[child] + self.heuristic(child, goal)
+                f_score = g_score[child] + self.heuristic(child, goal)
+                heapq.heappush(open_heap,(f_score,child))
                 open_set.add(child)    
         return None
     
@@ -247,48 +256,76 @@ class Racer:
             if path_to_goal:
                 return path_to_goal
     
-    
+    def is_move_safe(self, start: tuple[int,int], dest: tuple[int,int]) -> bool:
+        """This function checks if there is any legal move after the step from param start to param dest.
+
+        Args:
+            start (tuple[int,int]): The starting position
+            dest (tuple[int,int]): The desired destination's position
+
+        Returns:
+            bool: True if there is any valid move available after dest is reached with the calculated velocity from the two moves
+        """
+        dx = dest[0] - start[0]
+        dy = dest[1] - start[1]
+        pos_after_dest = (dest[0] + dx, dest[1] + dy)
+        safe_move = self.get_a_valid_move(pos_after_dest)
+        valid_pos_after_dest = self.calculate_pos_from_velocity(dest,current_speed=(dx,dy), desired_velocity=safe_move)
+        return self.track.TRACK_HEIGHT > valid_pos_after_dest[0] >= 0 and \
+            self.track.TRACK_WIDTH > valid_pos_after_dest[1] >= 0 and \
+            self.track.get_cell_value(valid_pos_after_dest) != 3 \
+            and self.track.valid_line(np.array(dest),np.array(valid_pos_after_dest))
     
     def race(self):
 
         goals = []
         goal = (0,0)
-        last_plan = []
-        last_plan_index = 0
+        prev_plan = []
+        prev_plan_step = 0
         while self.ktm_exc.read_input():
             
             self.update_enemy_pos()
             current_pos = self.ktm_exc.get_pos()
             self.track.read_track(current_pos)
             
-            #if not prev_goal or self.is_goal(current_pos, goal):
             self.logger("Calculating subgoals")
             goals = self.get_subgoals(current_pos)
-            goal = goals[0]#min(goals, key= lambda x: self.heuristic(self.track.get_start()[0],x))
+            if len(goals) == 0:
+                self.goal_history.clear()
+                goals = self.get_subgoals(current_pos)
+            goal = goals[0]
             
             path_to_goal = self.a_star_variable_speeds(goal)
       
             if path_to_goal:
                 next_move = path_to_goal[1]
-                last_plan = path_to_goal[2:]
-                last_plan_index = 0
+                prev_plan = path_to_goal[2:]
+                prev_plan_step = 0
+                no_of_steps_left = len(prev_plan)
+                if  11 > self.track.VISIBILITY_RADIUS > 7 and no_of_steps_left > 2 and not self.is_move_safe(prev_plan[-2], prev_plan[-1]):
+                    self.goal_history.update(self.get_neighbor_nodes(goal))#self.goal_history.add(goal)
                 if next_move == goal:
                     self.logger(f"{next_move}, {goal} is reached.")
-                    self.goal_history.extend(self.get_neighbor_nodes(goal))
+                    self.goal_history.update(self.get_neighbor_nodes(goal))
+
                 self.say_decision_to_judge(self.calculate_decision(next_move))
                 continue
             #self.say_decision_to_judge(self.get_a_valid_move(current_pos))
 
             else:
-                if last_plan_index >= len(last_plan):
+                if prev_plan_step >= len(prev_plan):
                     self.logger(f"Getting a valid move only: {self.get_a_valid_move(current_pos)}")
                     self.say_decision_to_judge(self.get_a_valid_move(current_pos))
                     continue
-                self.logger(f"Next move from last plan: {self.calculate_decision(last_plan[last_plan_index])}, coords:{last_plan[last_plan_index]} , Current pos: {current_pos}, speed: {self.ktm_exc.get_speed()}")
-                if (self.valid_move(current_pos, last_plan[last_plan_index], self.ktm_exc.get_speed())):
-                    self.say_decision_to_judge(self.calculate_decision(last_plan[last_plan_index]))
-                    last_plan_index +=1
+                self.logger(f"Next move from last plan: {self.calculate_decision(prev_plan[prev_plan_step])}, coords:{prev_plan[prev_plan_step]} , Current pos: {current_pos}, speed: {self.ktm_exc.get_speed()}")
+                if (self.valid_move(current_pos, prev_plan[prev_plan_step], self.ktm_exc.get_speed())):
+                    self.say_decision_to_judge(self.calculate_decision(prev_plan[prev_plan_step]))
+                    prev_plan_step +=1
                     continue
+                if self.track.VISIBILITY_RADIUS < 8:
+                    self.goal_history.update(self.get_neighbor_nodes(goal))
+                else:
+                    self.goal_history.add(goal)
                 self.say_decision_to_judge(self.get_a_valid_move(current_pos))
             
     
@@ -297,7 +334,7 @@ def main():
     my_glorious_racer.race()
         
 if __name__=='__main__':
-    print("READY", flush=True)  
+    print('READY', flush=True)  
     main()        
         
     

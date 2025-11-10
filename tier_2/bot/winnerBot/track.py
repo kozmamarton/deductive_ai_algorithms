@@ -57,7 +57,8 @@ class Track:
         return self.map
     
     def get_visible_track(self):
-        return np.argwhere((self.map > -1))
+        mask = (self.map > -1)
+        return np.column_stack(np.nonzero(mask))
     
     def get_goals(self):
         return np.argwhere(self.map == 100)
@@ -66,8 +67,8 @@ class Track:
         return np.argwhere(self.map == 0)
 
     def get_cell_value(self, coords: tuple[int,int]):
-        if coords[0] < 0 or coords[0] > self.map.shape[0]\
-            or coords[1] < 0 or coords[1] > self.map.shape[1]:
+        if coords[0] < 0 or coords[0] >= self.map.shape[0]\
+            or coords[1] < 0 or coords[1] >= self.map.shape[1]:
                 return -1
         return self.map[coords]
     
@@ -77,9 +78,6 @@ class Track:
     def valid_line(self, pos1: np.ndarray, pos2: np.ndarray) -> bool:
         #stolen from lieutenant crown becuase i was lazy to write it myself but i understand how this works
         track = self.map
-        if (np.any(pos1 < 0) or np.any(pos2 < 0) or np.any(pos1 >= track.shape)
-                or np.any(pos2 >= track.shape)):
-            return False
         diff = pos2 - pos1
         # Go through the straight line connecting ``pos1`` and ``pos2``
         # cell-by-cell. Wall is blocking if either it is straight in the way or

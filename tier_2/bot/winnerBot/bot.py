@@ -5,7 +5,6 @@ from enemy import EnemyRacer
 from logger import get_logger
 import heapq
 import math
-from collections import deque
 
 class Racer:
     track : Track
@@ -134,46 +133,86 @@ class Racer:
         return path[::-1]
     
     def get_neighbor_nodes(self, node: tuple[int,int]):
+        """Returns the given node's neighboring positions
+
+        Args:
+            node (tuple[int,int]): The node to be examined
+
+        Returns:
+            list[tuple[int,int]]: A list containing the neighboring positions
+        """
         return [(i[0]+node[0], i[1] + node[1]) for i in self.POSSIBLE_DIRECTIONS \
             if self.track.TRACK_HEIGHT> i[0]+node[0] >= 0 and self.track.TRACK_WIDTH> i[1]+node[1] >= 0]
 
-    def get_subgoals(self, current_pos: tuple[int,int] ):
-            visible_track = self.track.get_visible_track()
-            subgoals = []
-            unknown_neighbor_count = {}
+    def get_max_subgoals(self, current_pos: tuple[int,int] ):
+        """Returns a set of goals of the length of self.SIZE_OF_SUBGOALS (let it be x). The top x goals are the ones with the most unknown neighbors.
+
+        Args:
+            current_pos (tuple[int,int]): Current position of the agent
+
+        Returns:
+            list[tuple[int,int]]: A list containing a number of goals set by self.SIZE_OF_SUBGOALS
+        """
+        visible_track = self.track.get_visible_track()
+        subgoals = []
+        unknown_neighbor_count = {}
+        
+        for i in visible_track:
+            node = tuple(i)
+            node_value = self.track.get_cell_value(node)
+            if not self.track.traversable(node_value) or node == current_pos \
+                or self.track.get_cell_value(node)==3:
+                continue
+            if self.track.get_cell_value(node) == 100:
+                if self.track.valid_line(np.array(current_pos),i):
+                    return [node]
+                subgoals.append(node)
+                continue
+            if self.heuristic(current_pos, node) < self.track.VISIBILITY_RADIUS/2:
+                continue
             
-            for i in visible_track:
+            unknown_neighbor_count[node] = 0
+            neighbors = self.get_neighbor_nodes(node)
+            for neighbor in neighbors:
+                if neighbor == node:
+                    continue
+                if self.track.get_cell_value(neighbor) == 3:
+                    unknown_neighbor_count[node] +=1
+        nodes_with_most_neighbors = sorted(unknown_neighbor_count.items(), key=lambda x: x[1], reverse=True)
+        
+        for item in nodes_with_most_neighbors:
+            if item[0] in self.goal_history \
+                or not self.ktm_exc.position_history.count(item[0])==0:
+                continue
+            #if self.heuristic(item[0], self.track.get_start()[0]) < self.heuristic(self.ktm_exc.position_history[-1], self.track.get_start()[0]):
+                #continue
+            subgoals.append(item[0])
+            
+        return subgoals[:self.SIZE_OF_SUBGOALS]
+                
+    def get_raw_subgoals(self):
+        """Returns a list of positions that have neighbors from the previously unseen fields
+
+        Returns:
+            list[tuple[int,int]]: List containing goals
+        """
+        goals = []
+        goals.extend(self.track.get_goals())
+        if len(goals) == 0:
+            visible_map = self.track.get_visible_track()
+            for i in visible_map:
                 node = tuple(i)
                 node_value = self.track.get_cell_value(node)
-                if not self.track.traversable(node_value) or node == current_pos \
-                    or self.track.get_cell_value(node)==3:
+                if node_value == -1 or node_value == 3:
                     continue
-                if self.track.get_cell_value(node) == 100:
-                    if self.track.valid_line(np.array(current_pos),i):
-                        return [node]
-                    subgoals.append(node)
-                    continue
-                if self.heuristic(current_pos, node) < self.track.VISIBILITY_RADIUS/2:
-                    continue
-                
-                unknown_neighbor_count[node] = 0
                 neighbors = self.get_neighbor_nodes(node)
-                for neighbor in neighbors:
-                    if neighbor == node:
-                        continue
-                    if self.track.get_cell_value(neighbor) == 3:
-                        unknown_neighbor_count[node] +=1
-            nodes_with_most_neighbors = sorted(unknown_neighbor_count.items(), key=lambda x: x[1], reverse=True)
-            
-            for item in nodes_with_most_neighbors:
-                if item[0] in self.goal_history \
-                    or not self.ktm_exc.position_history.count(item[0])==0:
-                    continue
-                #if self.heuristic(item[0], self.track.get_start()[0]) < self.heuristic(self.ktm_exc.position_history[-1], self.track.get_start()[0]):
-                    #continue
-                subgoals.append(item[0])
-                
-            return subgoals[:self.SIZE_OF_SUBGOALS]
+                for i in neighbors:
+                    if self.track.get_cell_value(i) == 3:
+                        goals.append(node)
+                        break
+        else:
+            return [tuple(i) for i in goals]
+        return goals
                 
     def a_star(self, SPEED_LIMIT: tuple[int,int], goal : tuple[int,int]) -> list[tuple[int,int]]:
         """Modified astar algorithm that calculates a path with the maximum speed set in param 1.
@@ -209,7 +248,7 @@ class Racer:
                 
             if self.is_goal(current,goal):
                 path = self.__retrieve_path(current, parent)
-                self.logger(f"Goal found!, current: {current}, goal: {goal},\n path: {path}")
+                #self.logger(f"Goal found!, current: {current}, goal: {goal},\n path: {path}")
                 return path
 
             open_set.remove(current)
@@ -232,6 +271,14 @@ class Racer:
         return None
     
     def get_a_valid_move(self, position: tuple[int,int]) -> tuple[int,int]:
+        """Returns a valid move if there is any with the current velocity modification options.
+
+        Args:
+            position (tuple[int,int]): The function starts seeking a valid move from this position.
+
+        Returns:
+            tuple[int,int]: A velocity pair that leads to a legal cell. If none found, the function returns (0,0)!
+        """
         for dx, dy in self.POSSIBLE_DIRECTIONS:
             child = self.calculate_pos_from_velocity(position, desired_velocity = (dx,dy))
             if self.valid_move(position, child):
@@ -277,22 +324,38 @@ class Racer:
             and self.track.valid_line(np.array(dest),np.array(valid_pos_after_dest))
     
     def race(self):
-
+        """Manages the race according the rules of the judge. This function contains the main loop of the agent.
+        """
         goals = []
         goal = (0,0)
         prev_plan = []
         prev_plan_step = 0
+        
         while self.ktm_exc.read_input():
             
             self.update_enemy_pos()
             current_pos = self.ktm_exc.get_pos()
             self.track.read_track(current_pos)
+            backup_failed = False
+            
+            #Based on experience when extremely low visibility radius is present, the usual goal selecting method doesn't work well in many cases.
+            #So I decided to make a different goal selection method for low visibility conditions.
+            if self.track.VISIBILITY_RADIUS < 3:
+                goals = self.get_raw_subgoals()
+                goal = min(goals, key= lambda x: self.heuristic(current_pos,x))
+                path_to_goal = self.a_star_variable_speeds(goal)
+                if path_to_goal is None:
+                    backup_failed = True
+                if not backup_failed:
+                    self.say_decision_to_judge(self.calculate_decision(path_to_goal[1]))
+                    continue
+                #If the low visibility pathfinding fails, we make a try with the default navigation method
             
             self.logger("Calculating subgoals")
-            goals = self.get_subgoals(current_pos)
+            goals = self.get_max_subgoals(current_pos) 
             if len(goals) == 0:
                 self.goal_history.clear()
-                goals = self.get_subgoals(current_pos)
+                goals = self.get_max_subgoals(current_pos)
             goal = goals[0]
             
             path_to_goal = self.a_star_variable_speeds(goal)

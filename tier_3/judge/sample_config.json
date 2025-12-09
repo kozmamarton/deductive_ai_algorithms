@@ -1,0 +1,5 @@
+{
+  "track_file": "maps/blocked.png",
+  "max_turns": 1000,
+  "visibility_radius": 8
+}

@@ -54,9 +54,9 @@ class Racer:
         priority = 0 # the lower the priority the more important a node is
         cell_value = self.track.get_cell_value(goal)
         if cell_value == self.track.OIL_CELL_VALUE:
-             priority = 2
+            priority = 10
         if cell_value == self.track.SAND_CELL_VALUE:
-            priority = 1
+            priority = 5
         # estimate minimal time using bang-bang (accel + decel)
         return 2 * math.sqrt(dist) + priority
      
@@ -123,7 +123,7 @@ class Racer:
                 
     def __retrieve_path(self, root: tuple[int, int], tree: dict) -> list[tuple[int, int]]:
         """Recursively iterates the dict 'tree' which supposed to describe different graphs where each key 
-        is a position and each value is the position's 'parent' - the position where we go to the child node
+        is a position and each value is the position's 'parent' - the position where we came from to the child node
 
         Args:
             root (tuple[int, int]): The root of the graph, the position on the grid which we need to have a path for.
@@ -151,7 +151,7 @@ class Racer:
         return [(i[0]+node[0], i[1] + node[1]) for i in self.POSSIBLE_DIRECTIONS \
             if self.track.TRACK_HEIGHT> i[0]+node[0] >= 0 and self.track.TRACK_WIDTH> i[1]+node[1] >= 0]
 
-    def get_max_subgoals(self, current_pos: tuple[int,int] ):
+    def get_subgoals(self, current_pos: tuple[int,int] ):
         """Returns a set of goals of the length of self.SIZE_OF_SUBGOALS (let it be x). The top x goals are the ones with the most unknown neighbors.
 
         Args:
@@ -175,8 +175,6 @@ class Racer:
                     return [node]
                 subgoals.append(node)
                 continue
-            if self.heuristic(current_pos, node) < self.track.VISIBILITY_RADIUS/2:
-                continue
             
             unknown_neighbor_count[node] = 0
             neighbors = self.get_neighbor_nodes(node)
@@ -185,6 +183,10 @@ class Racer:
                     continue
                 if self.track.get_cell_value(neighbor) == 3:
                     unknown_neighbor_count[node] +=1
+            if node_value == self.track.OIL_CELL_VALUE \
+                or node_value == self.track.SAND_CELL_VALUE:
+                    unknown_neighbor_count[node] -=2
+            
         nodes_with_most_neighbors = sorted(unknown_neighbor_count.items(), key=lambda x: x[1], reverse=True)
         
         for item in nodes_with_most_neighbors:
@@ -225,13 +227,12 @@ class Racer:
         self.logger(self.track.map[goal])
         while open_heap:
                         
-            current = heapq.heappop(open_heap)[1]#min(open_set, key=lambda x: f_score[x])
+            current = heapq.heappop(open_heap)[1]
             if parent.get(current) != None:
                 current_speed = (current[0] - parent[current][0], current[1] - parent[current][1])
                 
             if self.is_goal(current,goal):
                 path = self.__retrieve_path(current, parent)
-                #self.logger(f"Goal found!, current: {current}, goal: {goal},\n path: {path}")
                 return path
 
             open_set.remove(current)
@@ -319,26 +320,12 @@ class Racer:
             self.update_enemy_pos()
             current_pos = self.ktm_exc.get_pos()
             self.track.read_track(current_pos)
-            backup_failed = False
-            
-            #Based on experience when extremely low visibility radius is present, the usual goal selecting method doesn't work well in many cases.
-            #So I decided to make a different goal selection method for low visibility conditions.
-            '''if self.track.VISIBILITY_RADIUS < 3:
-                goals = self.get_raw_subgoals()
-                goal = min(goals, key= lambda x: self.heuristic(current_pos,x))
-                path_to_goal = self.a_star_variable_speeds(goal)
-                if path_to_goal is None:
-                    backup_failed = True
-                if not backup_failed:
-                    self.say_decision_to_judge(self.calculate_decision(path_to_goal[1]))
-                    continue
-               ''' #If the low visibility pathfinding fails, we make a try with the default navigation method
-            
+                        
             self.logger("Calculating subgoals")
-            goals = self.get_max_subgoals(current_pos) 
+            goals = self.get_subgoals(current_pos) 
             if len(goals) == 0:
                 self.goal_history.clear()
-                goals = self.get_max_subgoals(current_pos)
+                goals = self.get_subgoals(current_pos)
             goal = goals[0]
             
             path_to_goal = self.a_star_variable_speeds(goal)

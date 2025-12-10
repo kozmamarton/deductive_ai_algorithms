@@ -36,10 +36,10 @@ class Racer:
         
         
     def heuristic(self, start , goal) -> float:
-        """Heuristic function. Calculates a heuristic based on minimal cost to goal using bang-bang methodology with a priority based on cell value.
-        We get the euclidean distance from the goal and assume that on that distance, in the fist half we only accelerate, and on the second half, we only decelerate.
-        This heuristic may not be admissible in theory, but in practice it performed better than raw euclidean distance
-
+        """Heuristic function. Calculates a heuristic based on minimal cost to goal using normalized euclidean distance summed with a priority based on cell value.
+        We get the euclidean distance from the goal and simply add the start cell's priority to it.
+        Note: previously the heuristic used bang-bang observation, but now it is deprecated because it isn't admissible and therefore made some undefined behaviors present.
+        
         Args:
             start (tuple[int,int]): start position
             goal (tuple[int,int]): goal position
@@ -47,20 +47,13 @@ class Racer:
         Returns:
             float: The approximated distance from the start position to the goal position.
         """
-        
-        dx = goal[0] - start[0]
-        dy = goal[1] - start[1]
-        dist = math.hypot(dx, dy)
         priority = 0 # the lower the priority the more important a node is
         cell_value = self.track.get_cell_value(start)
         if cell_value == self.track.OIL_CELL_VALUE:
             priority = 50
         if cell_value == self.track.SAND_CELL_VALUE:
-            priority = 30
-        # estimate minimal time using bang-bang (accel + decel)
-        return 2 * math.sqrt(dist) + priority
-     
-        #return np.linalg.norm(np.array(start) - np.array(goal))    
+            priority = 30     
+        return np.linalg.norm(np.array(start) - np.array(goal)) + priority  
     
     
     def calculate_pos_from_velocity(self, start: tuple[int,int], current_speed: tuple = None, desired_velocity : tuple = (0,0)) -> tuple[int,int]:
@@ -345,6 +338,7 @@ class Racer:
                 if prev_plan_step >= len(prev_plan):
                     self.logger(f"Getting a valid move only: {self.get_a_valid_move(current_pos)}")
                     self.say_decision_to_judge(self.get_a_valid_move(current_pos))
+                    self.goal_history.add(goal)
                     continue
                 self.logger(f"Next move from last plan: {self.calculate_decision(prev_plan[prev_plan_step])}, coords:{prev_plan[prev_plan_step]} , Current pos: {current_pos}, speed: {self.ktm_exc.get_speed()}")
                 if (self.valid_move(current_pos, prev_plan[prev_plan_step], self.ktm_exc.get_speed())):

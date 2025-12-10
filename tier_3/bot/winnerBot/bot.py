@@ -24,7 +24,7 @@ class Racer:
             self.enemies.append(EnemyRacer(i))
         self.logger = get_logger()
         self.POSSIBLE_DIRECTIONS = [(i,j) for i in range(-1,2) for j in range(-1,2)]
-        self.MAXIMUM_SPEED = min(self.track.VISIBILITY_RADIUS//2,4)
+        self.MAXIMUM_SPEED = min(self.track.VISIBILITY_RADIUS//2,3)
         self.goal_history = set()
 
         
@@ -52,11 +52,11 @@ class Racer:
         dy = goal[1] - start[1]
         dist = math.hypot(dx, dy)
         priority = 0 # the lower the priority the more important a node is
-        cell_value = self.track.get_cell_value(goal)
+        cell_value = self.track.get_cell_value(start)
         if cell_value == self.track.OIL_CELL_VALUE:
-            priority = 10
+            priority = 50
         if cell_value == self.track.SAND_CELL_VALUE:
-            priority = 5
+            priority = 30
         # estimate minimal time using bang-bang (accel + decel)
         return 2 * math.sqrt(dist) + priority
      
@@ -351,9 +351,9 @@ class Racer:
                     self.say_decision_to_judge(self.calculate_decision(prev_plan[prev_plan_step]))
                     prev_plan_step +=1
                     continue
-                if self.track.VISIBILITY_RADIUS < 8:
+                if self.track.VISIBILITY_RADIUS < 8 and self.track.get_cell_value(goal) != self.track.GOAL_CELL_VALUE:
                     self.goal_history.update(self.get_neighbor_nodes(goal))
-                else:
+                elif self.track.get_cell_value(goal) != self.track.GOAL_CELL_VALUE:
                     self.goal_history.add(goal)
                 self.say_decision_to_judge(self.get_a_valid_move(current_pos))
             

@@ -15,6 +15,7 @@ class Track:
     start_position: tuple[int,int]
     OIL_CELL_VALUE: int = 91
     SAND_CELL_VALUE: int = 92
+    GOAL_CELL_VALUE: int = 100
     
     def __init__(self):
         self.__read_initial_props()
@@ -63,10 +64,10 @@ class Track:
         return np.column_stack(np.nonzero(mask))
     
     def get_goals(self):
-        return np.argwhere(self.map == 100)
+        return np.argwhere(self.map == self.GOAL_CELL_VALUE)
     
     def get_start(self):
-        return np.argwhere(self.map == 0)
+        return np.argwhere(self.map == 1)
 
     def get_cell_value(self, coords: tuple[int,int]):
         if coords[0] < 0 or coords[0] >= self.map.shape[0]\

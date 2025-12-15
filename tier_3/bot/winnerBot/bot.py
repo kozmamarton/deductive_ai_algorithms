@@ -71,6 +71,13 @@ class Racer:
             current_speed = self.ktm_exc.get_speed() 
         return (start[0] + desired_velocity[0] + current_speed[0], start[1] + desired_velocity[1] + current_speed[1])    
     
+    def is_enemy_on_pos(self, pos : tuple[int, int]):
+        for enemy in self.enemies:
+            if enemy.x == pos[0] and enemy.y == pos[1]:
+                return True
+    
+    
+    
     def valid_move(self, start:tuple[int,int], pos : tuple[int, int], speed: tuple[int, int] = None) -> bool:
         """Returns if a move is valid or not. It checks:
         - collision with walls or other players 
@@ -86,9 +93,8 @@ class Racer:
             bool: True if the move is legal, false otherwise
         """
         try:
-            for enemy in self.enemies:
-                if enemy.x == pos[0] and enemy.y == pos[1]:
-                    return False
+            if self.is_enemy_on_pos(pos):
+                return False
             if not speed:
                 speed = self.ktm_exc.get_speed()
             track = self.track.get_track()
@@ -164,7 +170,7 @@ class Racer:
                 or self.track.get_cell_value(node)==3:
                 continue
             if self.track.get_cell_value(node) == 100:
-                if self.track.valid_line(np.array(current_pos),i):
+                if self.track.valid_line(np.array(current_pos),i) and not self.is_enemy_on_pos(node):
                     return [node]
                 subgoals.append(node)
                 continue
@@ -271,6 +277,7 @@ class Racer:
     
     
     def say_decision_to_judge(self, decision : tuple[int, int]):
+        self.logger(f"Current move is: {decision[0]}, {decision[1]}")
         print(f'{decision[0]} {decision[1]}', flush=True)
     
     

@@ -1,6 +1,7 @@
 param(
     [int]$player_num,
-    [string]$replay_flag
+    [string]$replay_flag,
+    [int]$visibility_radius
 )
 
 $workdir = "judge/"
@@ -27,13 +28,13 @@ Start-Sleep -Seconds 3
 Write-Host "starting players"
 
 Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/winnerBot/bot.py" -NoNewWindow
-Start-Sleep -Seconds 1
+'''Start-Sleep -Seconds 1
 Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/winnerBot/bot.py" -NoNewWindow
 Start-Sleep -Seconds 1
 Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/winnerBot/bot.py" -NoNewWindow
 Start-Sleep -Seconds 1
 Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/winnerBot/bot.py" -NoNewWindow
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 1'''
 #Start-Process -FilePath "python" -ArgumentList "$($bots_dir)client_bridge.py", "bot/lieutenant_crown_him_with_many_crowns_thy_full_gallant_legions_he_found_it_in_him_to_forgive.py" -NoNewWindow
 
 
@@ -47,5 +48,5 @@ if (-not $replay_arg) {
 Write-Host "Race complete!"
 $last_log = "last_replay1"
 Write-Host $last_log
-python visualisation.py $last_log --visibility_radius 8
+python visualisation.py $last_log --visibility_radius $visibility_radius
 

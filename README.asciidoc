@@ -185,12 +185,12 @@ I included the same algorithms that I used in tier 2 but I removed the lines tha
 
 
 === Did you implement any AI algorithm by yourself? If yes, then explain what you learned during the implementation work. If not, then describe the aspects you considered when choosing an existing implementation.
-Yes, I modified my heuristic function by adding a priority to the estimation which is dependent on the cell type. From this I learned that in particular cases like in tier 3, a partly not admissible heuristic can be useful.
+Yes, I modified my heuristic function by adding a priority to the estimation which is dependent on the cell type. From this I learned that in particular cases like in tier 3, a partly not admissible heuristic can be useful. I also implemented a backup mechanism which activates if the a* won't return a path. This mechanism tries to stay on the path that have been previously calculated. If it's not possible for some reason, then it choses a move which leads to a neighboring cell with the best heuristics that is currently available. This made the agent far more robust than before. 
 
 
 === Have you used any heuristics or heuristic functions? If yes, then explain what, why and how?
 Yes, firstly I used the previously written bang-bang euclidean heuristics with an extra priority added to the estimation. If the observed cell is a sand cell we add +30 to the final estimation. If it is an oil cell, we add +50 to the final estimation. This way, we penalize the use of the special cells, but if the solution leads through such cells, the solution is still possible.
 
 === Evaluate the performance of the proposed solution, and provide a description of its limitations, and how it could be improved.
-I think that in tier 3, I achieved the best performance with the least number of hours in development. Currently I have the fastest bot on the leaderboard, and my bot achieves great performance on different maps too. But there is a bug that remained from tier 2 which I am trying to find. This bug causes the bot in the multi agent race to get stuck, just before the goal. This event occurs only in a few runs but when it happens, it gets the bot unable to complete the task. This can be improved with heavy debugging and observation of the code. 
+I think that in tier 3, I achieved the best performance with the least number of hours in development. Currently I have the fastest bot on the leaderboard, and my bot achieves great performance on different maps too. It surely can be improved. For example, trying out different heuristics could be great. Also improvements on the current filters in the subgoal selection can make the multi agent race more reliable. 
 

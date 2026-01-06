@@ -75,6 +75,7 @@ class Racer:
         for enemy in self.enemies:
             if enemy.x == pos[0] and enemy.y == pos[1]:
                 return True
+        return False
     
     
     
@@ -253,7 +254,7 @@ class Racer:
                 open_set.add(child)    
         return None
     
-    def get_a_valid_move(self, position: tuple[int,int]) -> tuple[int,int]:
+    def get_a_valid_move(self, position: tuple[int,int], goal: tuple[int,int]) -> tuple[int,int]:
         """Returns a valid move if there is any with the current velocity modification options.
 
         Args:
@@ -262,11 +263,13 @@ class Racer:
         Returns:
             tuple[int,int]: A velocity pair that leads to a legal cell. If none found, the function returns (0,0)!
         """
+        valid_moves = []
         for dx, dy in self.POSSIBLE_DIRECTIONS:
             child = self.calculate_pos_from_velocity(position, desired_velocity = (dx,dy))
             if self.valid_move(position, child):
-                return (dx,dy)
-        return (0,0)
+                valid_moves.append(child)
+        valid_moves = sorted(valid_moves, key = lambda x: self.heuristic(x,goal))
+        return (0,0) if len(valid_moves) == 0 else self.calculate_decision(valid_moves[0])
     
     
     def calculate_decision(self, next_pos: tuple[int, int]) -> tuple[int, int]:
@@ -286,7 +289,8 @@ class Racer:
             path_to_goal = self.a_star((velocity,velocity), goal=goal)
             if path_to_goal:
                 return path_to_goal
-    
+            
+    @DeprecationWarning
     def is_move_safe(self, start: tuple[int,int], dest: tuple[int,int]) -> bool:
         """This function checks if there is any legal move after the step from param start to param dest.
 
@@ -314,7 +318,6 @@ class Racer:
         goal = (0,0)
         prev_plan = []
         prev_plan_step = 0
-        
         while self.ktm_exc.read_input():
             
             self.update_enemy_pos()
@@ -343,8 +346,8 @@ class Racer:
 
             else:
                 if prev_plan_step >= len(prev_plan):
-                    self.logger(f"Getting a valid move only: {self.get_a_valid_move(current_pos)}")
-                    self.say_decision_to_judge(self.get_a_valid_move(current_pos))
+                    self.logger(f"Getting a valid move only: {self.get_a_valid_move(current_pos,goal)}")
+                    self.say_decision_to_judge(self.get_a_valid_move(current_pos,goal))
                     self.goal_history.add(goal)
                     continue
                 self.logger(f"Next move from last plan: {self.calculate_decision(prev_plan[prev_plan_step])}, coords:{prev_plan[prev_plan_step]} , Current pos: {current_pos}, speed: {self.ktm_exc.get_speed()}")
@@ -352,11 +355,11 @@ class Racer:
                     self.say_decision_to_judge(self.calculate_decision(prev_plan[prev_plan_step]))
                     prev_plan_step +=1
                     continue
-                if self.track.VISIBILITY_RADIUS < 8 and self.track.get_cell_value(goal) != self.track.GOAL_CELL_VALUE:
+                if self.track.VISIBILITY_RADIUS > 7 and self.track.get_cell_value(goal) != self.track.GOAL_CELL_VALUE:
                     self.goal_history.update(self.get_neighbor_nodes(goal))
                 elif self.track.get_cell_value(goal) != self.track.GOAL_CELL_VALUE:
                     self.goal_history.add(goal)
-                self.say_decision_to_judge(self.get_a_valid_move(current_pos))
+                self.say_decision_to_judge(self.get_a_valid_move(current_pos,goal))
             
     
 def main():

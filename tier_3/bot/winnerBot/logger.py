@@ -1,6 +1,6 @@
 import datetime
 
-DEBUG = True
+DEBUG = False
 
 def get_logger():
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
